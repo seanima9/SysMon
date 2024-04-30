@@ -1,5 +1,5 @@
 [package]
-name = "linux_process_viewer"
+name = "process_viewer"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 clap = "4.5.4"
+sysinfo = "0.30.11"
+ratatui = "0.26.2"
+crossterm = "0.25"
