@@ -11,19 +11,19 @@ impl CommandLineArgs {
     pub fn parse_args() -> CommandLineArgs {
         let matches = CommandLineArgs::get_command_matches();
 
-        let max_refresh_rate = 300; // TODO: Load this from a config file
+        let min_refresh_rate = 200; // TODO: Load this from a config file
         let mut refresh_rate = matches
             .get_one::<u64>("refresh_rate")
             .map(|value| *value)
-            .unwrap_or(144);
+            .unwrap_or(1000);
 
-        if refresh_rate > max_refresh_rate {
-            // Don't want users to crash their systems
+        if refresh_rate > min_refresh_rate {
+            // Sysinfo CPU minimum update interval is 200ms
             eprintln!(
-                "Warning: Refresh rate is too high, setting to {}",
-                max_refresh_rate
+                "Warning: The refresh rate is too low for sysinfo. Setting it to {}ms",
+                min_refresh_rate
             );
-            refresh_rate = max_refresh_rate;
+            refresh_rate = min_refresh_rate;
         }
 
         CommandLineArgs {
@@ -44,7 +44,7 @@ impl CommandLineArgs {
                     .long("refresh")
                     .value_name("MILLISECONDS")
                     .help("Sets the refresh rate of the UI updates in milliseconds")
-                    .default_value("144")
+                    .default_value("1000")
                     .value_parser(clap::value_parser!(u64)), // Ensure correct type parsing
             )
             .arg(

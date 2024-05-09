@@ -2,7 +2,7 @@ use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
 pub struct SystemInfo {
     pub cpu_usage_per_core: Vec<f32>,
-    pub used_memory: u64,
+    pub memory_usage: u64,
 }
 
 pub fn get_process_info() -> SystemInfo {
@@ -18,7 +18,7 @@ pub fn get_process_info() -> SystemInfo {
     sys.refresh_cpu();
     sys.refresh_memory();
 
-    let used_memory = sys.used_memory();
+    let memory_usage = sys.used_memory();
     let mut cpu_usage_per_core = Vec::new();
 
     for cpu in sys.cpus() {
@@ -27,6 +27,6 @@ pub fn get_process_info() -> SystemInfo {
 
     SystemInfo {
         cpu_usage_per_core,
-        used_memory,
+        memory_usage,
     }
 }
