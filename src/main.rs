@@ -1,12 +1,13 @@
 mod app;
 mod cli;
 mod config;
-
-mod system;
-mod ui;
+mod widgets;
 
 use app::app_main;
 
 fn main() {
-    app_main();
+    let run = app_main();
+    if let Err(e) = run {
+        eprintln!("Error: {}", e);
+    }
 }

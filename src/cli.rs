@@ -11,7 +11,7 @@ impl CommandLineArgs {
     pub fn parse_args() -> CommandLineArgs {
         let matches = CommandLineArgs::get_command_matches();
 
-        let min_refresh_rate = 200; // TODO: Load this from a config file
+        let min_refresh_rate = 500; // TODO: Load this from a config file
         let mut refresh_rate = matches
             .get_one::<u64>("refresh_rate")
             .map(|value| *value)
