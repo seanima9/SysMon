@@ -1,6 +1,6 @@
 use std::io::{stdout, Result};
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, process::Command, str};
 
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
@@ -13,7 +13,7 @@ use crossterm::{
 use ratatui::prelude::*;
 
 use crate::cli::CommandLineArgs;
-use crate::widgets::{get_cpu_chart, get_memory_chart};
+use crate::widgets::{get_cpu_chart, get_gpu_chart, get_memory_chart};
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -24,6 +24,7 @@ struct LimitedQueue<T> {
 
 struct GraphData {
     cpu_usage: LimitedQueue<f64>,
+    gpu_usage: LimitedQueue<f64>,
     memory_usage: LimitedQueue<f64>,
 }
 
@@ -50,14 +51,14 @@ impl<T> LimitedQueue<T> {
 
 ////////////////////////////////////////////////////////////////////////
 
-/// Draws graphs of CPU and memory usage.
+/// Draws graphs of CPU, GPU and memory usage.
 ///
-/// This function initializes the terminal, draws graphs of CPU and memory usage, and then clears the terminal.
+/// This function initializes the terminal, draws graphs of CPU, GPU and memory usage, and then clears the terminal.
 /// The graphs are drawn side by side, each taking up 50% of the terminal's width.
 ///
 /// # Arguments
 ///
-/// * `graph_data` - A reference to the GraphData object, which contains the CPU and memory usage data to be graphed.
+/// * `graph_data` - A reference to the GraphData object, which contains the data to be graphed.
 ///
 /// # Returns
 ///
@@ -90,18 +91,35 @@ fn draw_graphs(graph_data: &GraphData) -> Result<()> {
         .map(|(i, &value)| (i as f64, value as f64))
         .collect();
 
+    let gpu_data: Vec<(f64, f64)> = graph_data
+        .gpu_usage
+        .queue
+        .iter()
+        .enumerate()
+        .map(|(i, &value)| (i as f64, value as f64))
+        .collect();
+
     let cpu_chart = get_cpu_chart(&cpu_data);
     let memory_chart = get_memory_chart(&memory_data);
+    let gpu_chart = get_gpu_chart(&gpu_data);
 
     terminal.draw(|frame| {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .margin(1)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+            .constraints(
+                [
+                    Constraint::Percentage(33),
+                    Constraint::Percentage(33),
+                    Constraint::Percentage(34),
+                ]
+                .as_ref(),
+            )
             .split(frame.size());
 
         frame.render_widget(cpu_chart, chunks[0]);
         frame.render_widget(memory_chart, chunks[1]);
+        frame.render_widget(gpu_chart, chunks[2]);
     })?;
 
     Ok(())
@@ -135,6 +153,31 @@ fn get_process_info(sys: &mut System) -> SystemInfo {
     }
 }
 
+/// Retrieves the GPU usage information.
+///
+/// This function runs the `nvidia-smi` command to get the GPU % utilization.
+///
+/// # Returns
+///
+/// * A Result object containing the GPU usage as a string if the function succeeds.
+fn get_gpu_usage() -> Result<String> {
+    let output = Command::new("nvidia-smi")
+        .arg("--query-gpu=memory.used,memory.total")
+        .arg("--format=csv,noheader,nounits")
+        .output()?;
+
+    let output_str = str::from_utf8(&output.stdout).unwrap();
+    let mut lines = output_str.trim().split(',');
+
+    let memory_used: f32 = lines.next().unwrap().trim().parse().unwrap();
+    let memory_total: f32 = lines.next().unwrap().trim().parse().unwrap();
+
+    let gpu_usage = (memory_used / memory_total) * 100.0;
+    let gpu_usage_str = format!("{:.0}", gpu_usage);
+
+    Ok(gpu_usage_str)
+}
+
 /// The main function of the application.
 ///
 /// This function initializes the system, parses command line arguments, and enters a loop where it
@@ -156,8 +199,9 @@ pub fn app_main() -> Result<()> {
     let args = CommandLineArgs::parse_args();
 
     let mut graph_data = GraphData {
-        cpu_usage: LimitedQueue::new(10),
-        memory_usage: LimitedQueue::new(10),
+        cpu_usage: LimitedQueue::new(30),
+        gpu_usage: LimitedQueue::new(30),
+        memory_usage: LimitedQueue::new(30),
     };
 
     loop {
@@ -174,9 +218,15 @@ pub fn app_main() -> Result<()> {
         //}
         let cpu_usage = cpu_core_usage.iter().sum::<f64>() / cpu_core_usage.len() as f64;
 
+        let gpu_usage = match get_gpu_usage() {
+            Ok(gpu_usage) => gpu_usage.parse::<f64>().unwrap_or_default(),
+            Err(_) => -1.0,
+        };
+
         // Push the usage data into the queues
         graph_data.memory_usage.push(memory_usage);
         graph_data.cpu_usage.push(cpu_usage);
+        graph_data.gpu_usage.push(gpu_usage);
 
         if args.show_graphs {
             let result = draw_graphs(&graph_data);
