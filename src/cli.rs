@@ -1,23 +1,21 @@
 use clap::{Arg, ArgMatches, Command};
 
-/// Struct to hold command line arguments
 pub struct CommandLineArgs {
     pub refresh_rate: u64,
     pub show_graphs: bool,
 }
 
 impl CommandLineArgs {
-    /// Parse command line arguments
     pub fn parse_args() -> CommandLineArgs {
         let matches = CommandLineArgs::get_command_matches();
 
-        let min_refresh_rate = 500; // TODO: Load this from a config file
+        let min_refresh_rate = 500;
         let mut refresh_rate = matches
             .get_one::<u64>("refresh_rate")
             .map(|value| *value)
-            .unwrap_or(1000);
+            .unwrap_or(600);
 
-        if refresh_rate > min_refresh_rate {
+        if refresh_rate < min_refresh_rate {
             // Sysinfo CPU minimum update interval is 200ms
             eprintln!(
                 "Warning: The refresh rate is too low for sysinfo. Setting it to {}ms",
@@ -34,7 +32,7 @@ impl CommandLineArgs {
 
     /// Define and get command line arguments
     fn get_command_matches() -> ArgMatches {
-        Command::new("Linux Process Viewer")
+        Command::new("System Monitor CLI")
             .version("1.0")
             .author("Sean Imani")
             .about("Monitors and displays system process information")
@@ -44,7 +42,7 @@ impl CommandLineArgs {
                     .long("refresh")
                     .value_name("MILLISECONDS")
                     .help("Sets the refresh rate of the UI updates in milliseconds")
-                    .default_value("1000")
+                    .default_value("600")
                     .value_parser(clap::value_parser!(u64)), // Ensure correct type parsing
             )
             .arg(

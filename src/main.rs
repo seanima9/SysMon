@@ -1,6 +1,5 @@
 mod app;
 mod cli;
-mod config;
 mod widgets;
 
 use app::app_main;

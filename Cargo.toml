@@ -1,5 +1,5 @@
 [package]
-name = "process_viewer"
+name = "SysMon"
 version = "0.1.0"
 edition = "2021"
 

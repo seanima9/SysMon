@@ -13,8 +13,7 @@ use crossterm::{
 use ratatui::prelude::*;
 
 use crate::cli::CommandLineArgs;
-use crate::widgets::{get_cpu_chart, get_gpu_chart, get_memory_chart};
-
+use crate::widgets::get_chart;
 ////////////////////////////////////////////////////////////////////////
 
 struct LimitedQueue<T> {
@@ -30,7 +29,7 @@ struct GraphData {
 
 struct SystemInfo {
     pub cpu_usage_per_core: Vec<f32>,
-    pub memory_usage: u64,
+    pub memory_usage: f64,
 }
 
 impl<T> LimitedQueue<T> {
@@ -99,14 +98,17 @@ fn draw_graphs(graph_data: &GraphData) -> Result<()> {
         .map(|(i, &value)| (i as f64, value as f64))
         .collect();
 
-    let cpu_chart = get_cpu_chart(&cpu_data);
-    let memory_chart = get_memory_chart(&memory_data);
-    let gpu_chart = get_gpu_chart(&gpu_data);
+    let cpu_chart = get_chart(&cpu_data, Color::Yellow, "CPU Usage", "Percentage");
+
+    let memory_chart = get_chart(&memory_data, Color::Green, "Memory Usage", "Percentage");
+
+    let gpu_chart = get_chart(&gpu_data, Color::Red, "GPU Usage", "Percentage");
 
     terminal.draw(|frame| {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .margin(1)
+            .margin(2)
+            .spacing(3)
             .constraints(
                 [
                     Constraint::Percentage(33),
@@ -127,7 +129,8 @@ fn draw_graphs(graph_data: &GraphData) -> Result<()> {
 
 /// Retrieves the system's CPU and memory usage information.
 ///
-/// This function refreshes the system's CPU and memory information, then retrieves the used memory and CPU usage per core.
+/// This function refreshes the system's CPU and memory information,
+/// then retrieves the used memory and CPU usage per core.
 ///
 /// # Arguments
 ///
@@ -141,6 +144,9 @@ fn get_process_info(sys: &mut System) -> SystemInfo {
     sys.refresh_memory();
 
     let memory_usage = sys.used_memory();
+    let total_memory = sys.total_memory();
+    let memory_usage_percentage = (memory_usage as f64 / total_memory as f64) * 100.0;
+
     let mut cpu_usage_per_core = Vec::new();
 
     for cpu in sys.cpus() {
@@ -149,7 +155,7 @@ fn get_process_info(sys: &mut System) -> SystemInfo {
 
     SystemInfo {
         cpu_usage_per_core,
-        memory_usage,
+        memory_usage: memory_usage_percentage,
     }
 }
 
@@ -178,11 +184,11 @@ fn get_gpu_usage() -> Result<String> {
     Ok(gpu_usage_str)
 }
 
-/// The main function of the application.
+/// The main application loop.
 ///
 /// This function initializes the system, parses command line arguments, and enters a loop where it
 /// continuously retrieves and processes system information.
-/// If the `show_graphs` argument is true, it draws graphs of the CPU and memory usage.
+/// If the `show_graphs` argument is true, it draws graphs of the CPU, GPU, and memory usage.
 /// Otherwise, it prints the memory usage to the console.
 /// The loop can be exited by pressing 'q' when `show_graphs` is true.
 ///
@@ -199,23 +205,20 @@ pub fn app_main() -> Result<()> {
     let args = CommandLineArgs::parse_args();
 
     let mut graph_data = GraphData {
-        cpu_usage: LimitedQueue::new(30),
-        gpu_usage: LimitedQueue::new(30),
-        memory_usage: LimitedQueue::new(30),
+        cpu_usage: LimitedQueue::new(50),
+        gpu_usage: LimitedQueue::new(50),
+        memory_usage: LimitedQueue::new(50),
     };
 
     loop {
         let process_info = get_process_info(&mut sys);
-        let memory_usage = process_info.memory_usage as f64 / 1024.0 / 1024.0; // Convert to MB
+        let memory_usage = process_info.memory_usage;
         let cpu_core_usage: Vec<f64> = process_info
             .cpu_usage_per_core
             .iter()
             .map(|&x| x as f64)
             .collect();
 
-        //for (i, core_usage) in cpu_core_usage.iter().enumerate() {
-        //    println!("CPU Core {}: {:.2} %", i, core_usage);
-        //}
         let cpu_usage = cpu_core_usage.iter().sum::<f64>() / cpu_core_usage.len() as f64;
 
         let gpu_usage = match get_gpu_usage() {
@@ -247,6 +250,7 @@ pub fn app_main() -> Result<()> {
         } else {
             println!("Memory Usage: {:.2} MB", memory_usage);
             println!("CPU Usage: {:.2} %", cpu_usage);
+            println!("GPU Usage: {:.2} %", gpu_usage);
         }
         std::thread::sleep(std::time::Duration::from_millis(args.refresh_rate));
     }
